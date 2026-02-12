@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Speech to Text Experiment</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            background: #333 url('https://placehold.co/1920x1080/333/666?text=Slide+Background+Placeholder') no-repeat center center fixed;
+            background-size: cover;
+            color: #fff;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+        }
+        
+        /* Mimic the Reveal.js plugin overlay */
+        #speech-text-overlay {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 80%;
+            max-width: 1200px;
+            height: auto;
+            max-height: 150px; /* Limit height to a few lines */
+            background: rgba(0, 0, 0, 0.6); /* Semi-transparent dark background */
+            backdrop-filter: blur(5px);
+            padding: 15px 25px;
+            border-radius: 10px;
+            font-size: 2rem;
+            line-height: 1.3;
+            color: #fff;
+            text-align: center;
+            pointer-events: auto; /* Allow scrolling interaction */
+            overflow-y: auto; /* Enable vertical scrolling */
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start; /* Standard flow for scrolling */
+            transition: opacity 0.3s ease;
+        }
+
+        /* Custom Scrollbar for Webkit */
+        #speech-text-overlay::-webkit-scrollbar {
+            width: 8px;
+        }
+        #speech-text-overlay::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 4px;
+        }
+        #speech-text-overlay::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 4px;
+        }
+        #speech-text-overlay::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.5);
+        }
+
+        #speech-text-content {
+            /* This inner container handles the scrolling logic if we want to keep history */
+             text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
+        }
+
+        .final {
+            color: #eee;
+        }
+        .interim {
+            color: #aaa;
+            font-style: italic;
+        }
+
+        /* Controls for the experiment */
+        #controls {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: rgba(0,0,0,0.8);
+            padding: 10px;
+            border-radius: 5px;
+            z-index: 1000;
+        }
+        
+        button {
+            padding: 8px 16px;
+            cursor: pointer;
+            background: #444;
+            color: white;
+            border: 1px solid #666;
+            border-radius: 4px;
+        }
+        button.active {
+            background: #d9534f;
+            border-color: #d43f3a;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="controls">
+        <button id="toggle-btn">Start Mic</button>
+        <div id="status" style="font-size: 0.8em; margin-top: 5px; color: #aaa;">Ready</div>
+    </div>
+
+    <!-- The actual overlay element that will be in the plugin -->
+    <div id="speech-text-overlay">
+        <div id="speech-text-content">
+            <span id="final-span" class="final"></span>
+            <span id="interim-span" class="interim"></span>
+        </div>
+    </div>
+
+    <script>
+        const statusEl = document.getElementById('status');
+        const finalSpan = document.getElementById('final-span');
+        const interimSpan = document.getElementById('interim-span');
+        const overlay = document.getElementById('speech-text-overlay');
+        const toggleBtn = document.getElementById('toggle-btn');
+        
+        let recognition;
+        let isListening = false;
+        let shouldBeListening = false; // Intended state
+
+        // Check browser support
+        if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+            // Firefox Detection
+            if (navigator.userAgent.includes("Firefox")) {
+                 statusEl.innerHTML = '<strong style="color: #ffaa00;">Warning: Firefox detected.</strong><br>You must go to <code>about:config</code> and set <code>media.webspeech.recognition.enable</code> to <code>true</code> for this to work.';
+            }
+
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            recognition = new SpeechRecognition();
+            recognition.continuous = true;
+            recognition.interimResults = true;
+            recognition.lang = 'en-US';
+
+            recognition.onstart = () => {
+                isListening = true;
+                statusEl.textContent = "Status: Listening";
+                toggleBtn.textContent = "Stop Mic";
+                toggleBtn.classList.add('active');
+                overlay.style.opacity = '1';
+            };
+
+            recognition.onerror = (event) => {
+                console.error("Speech recognition error", event.error);
+                statusEl.textContent = "Error: " + event.error;
+                if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+                    shouldBeListening = false;
+                    isListening = false;
+                    toggleBtn.classList.remove('active');
+                }
+            };
+
+            recognition.onend = () => {
+                isListening = false;
+                // If we intend to listen, restart immediately
+                if (shouldBeListening) {
+                    console.log("Restarting recognition...");
+                    try {
+                        recognition.start();
+                    } catch (e) {
+                        console.warn("Restart failed:", e);
+                    }
+                } else {
+                    statusEl.textContent = "Status: Stopped";
+                    toggleBtn.textContent = "Start Mic";
+                    toggleBtn.classList.remove('active');
+                    overlay.style.opacity = '0.5'; // Dim when stopped
+                }
+            };
+
+            recognition.onresult = (event) => {
+                let interimTranscript = '';
+                // Append final results to the final span
+                // In a real subtitle scenario, we might want to clear old text after some time
+                // to keep the view clean. For now, let's keep the last few sentences.
+                
+                for (let i = event.resultIndex; i < event.results.length; ++i) {
+                    if (event.results[i].isFinal) {
+                        finalSpan.innerText += event.results[i][0].transcript + ' ';
+                    } else {
+                        interimTranscript += event.results[i][0].transcript;
+                    }
+                }
+                interimSpan.innerText = interimTranscript;
+                
+                // Auto-scroll logic: Keep the bottom of the content visible
+                // With flex-direction: column (default/start), we just set scrollTop
+                overlay.scrollTop = overlay.scrollHeight;
+            };
+
+        } else {
+            statusEl.textContent = "Not supported in this browser.";
+            toggleBtn.disabled = true;
+        }
+
+        toggleBtn.addEventListener('click', () => {
+            if (shouldBeListening) {
+                shouldBeListening = false;
+                recognition.stop();
+            } else {
+                shouldBeListening = true;
+                finalSpan.innerText = ''; 
+                interimSpan.innerText = '';
+                try {
+                    recognition.start();
+                } catch (e) {
+                    console.error("Start failed:", e);
+                }
+            }
+        });
+
+    </script>
+</body>
+</html>
