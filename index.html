@@ -13,7 +13,11 @@
         <section>
           <h1>Speech to Text</h1>
           <p>This is a demo of the real-time transcription plugin.</p>
-          <p><small>Press 'T' to toggle subtitles.</small></p>
+          <ul style="font-size: smaller;">
+            <li>Press 'T' to show subtitles, adjust settings if needed.</li>
+            <li>Press 'T' again to start transcribing.</li>
+            <li>Press 'T' again to remove.</li>
+          </ul>
         </section>
         <section>
           <h2>Slide 2</h2>
@@ -24,14 +28,16 @@
           <ul>
             <li>Real-time transcription</li>
             <li>Auto-scrolling</li>
-            <li>Works stand-alone (in Chrome/Edge)...</li>
-            <ul>
-              <li>words only</li>
-            </ul>
-            <li>... or with a speech-to-text docker companion</li>
-            <ul>
-              <li>better accuracy, punctuation</li>
-            </ul>
+            <li>Works stand-alone (in Chrome/Edge)...
+              <ul>
+                <li>words only</li>
+              </ul>
+            </li>
+            <li>... or with a speech-to-text docker companion
+              <ul>
+                <li>better accuracy, punctuation</li>
+              </ul>
+            </li>
           </ul>
         </section>
       </div>
@@ -48,8 +54,9 @@
         hash: true,
         plugins: [ RevealSpeechText ],
         speechText: {
-            enabled: false, // Default off, press T to toggle
-            debug: true
+            language: 'en',
+            model: 'small.en',
+            port: 9090
         }
       });
     </script>
