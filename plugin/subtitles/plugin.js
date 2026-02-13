@@ -501,7 +501,7 @@ const RevealSubtitles = {
                 "color:#6cf;text-decoration:underline;cursor:pointer";
               statusText.innerHTML =
                 `Backend not reachable on port ${options.port}.<br>` +
-                `<a href="https://github.com/OleMussmann/RevealSubtitles/README.md#getting-started" target="_blank" style="${linkStyle}">See README for setup instructions</a>`;
+                `<a href="https://github.com/OleMussmann/RevealSubtitles/?tab=readme-ov-file#getting-started" target="_blank" style="${linkStyle}">See README for setup instructions</a>`;
               statusText.style.color = "#f88";
             } else {
               statusText.innerText = "Reconnecting...";
