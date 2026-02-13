@@ -1,6 +1,6 @@
 /**
  * Speech-to-Text Plugin for Reveal.js
- * Real-time transcription via WhisperLive (Docker)
+ * Real-time transcription via WhisperLive (Docker) or Browser Speech API
  *
  * Icons: Font Awesome Free 7.2.0 by @fontawesome
  * License: https://fontawesome.com/license/free
@@ -77,6 +77,7 @@ const RevealSpeechText = {
             .speech-input-group label { display: block; font-size: 0.8em; color: #aaa; margin-bottom: 2px; }
             .speech-input-field { background: rgba(255,255,255,0.1); border: 1px solid #555; color: white; padding: 5px; border-radius: 4px; width: 100%; box-sizing: border-box; }
             .speech-input-field:focus { outline: none; border-color: #007bff; }
+            .speech-input-field option { background: #222; color: white; }
         `;
         document.head.appendChild(styleSheet);
 
@@ -148,22 +149,37 @@ const RevealSpeechText = {
         };
 
         const restartConnection = () => {
-            if (shouldBeListening && ws && ws.readyState === WebSocket.OPEN) {
+            if (!shouldBeListening) return;
+            // Stop whichever backend is currently active
+            stopBrowserSpeech();
+            if (ws && ws.readyState === WebSocket.OPEN) {
                  try {
                      ws.send(textEncoder.encode("END_OF_AUDIO"));
                  } catch (err) { /* ignore */ }
                  ws.close(1000, "config change");
             }
+            stopLocal();
+            // Restart with the (possibly new) backend
+            finalSpan.innerText = "";
+            interimSpan.innerText = "";
+            if (options.model === 'browser') {
+                initBrowserSpeech();
+            } else {
+                initWhisperLive();
+            }
         };
 
+        const hasBrowserSpeech = !!(window.SpeechRecognition || window.webkitSpeechRecognition);
         const models = [
-            { value: 'tiny.en', label: 'tiny.en (500Mb)' },
-            { value: 'small.en', label: 'small.en (800Mb)' },
-            { value: 'medium.en', label: 'medium.en (2.3Gb)' },
-            { value: 'large-v3', label: 'large-v3 (4.2Gb)' }
+            ...(hasBrowserSpeech ? [{ value: 'browser', label: 'Browser (built-in)' }] : []),
+            { value: 'tiny.en', label: 'tiny.en (Whisper, 500Mb)' },
+            { value: 'small.en', label: 'small.en (Whisper, 800Mb)' },
+            { value: 'medium.en', label: 'medium.en (Whisper, 2.3Gb)' },
+            { value: 'large-v3', label: 'large-v3 (Whisper, 4.2Gb)' }
         ];
         const modelControl = createInput('Model', 'select', models, (e) => {
             options.model = e.target.value;
+            updateSettingsVisibility();
             restartConnection();
         });
         modelControl.input.value = options.model;
@@ -180,6 +196,12 @@ const RevealSpeechText = {
             restartConnection();
         });
         settingsPanel.appendChild(portControl.group);
+
+        const updateSettingsVisibility = () => {
+            const isBrowser = options.model === 'browser';
+            portControl.group.style.display = isBrowser ? 'none' : 'block';
+        };
+        updateSettingsVisibility();
 
         controlContainer.appendChild(settingsPanel);
 
@@ -271,7 +293,81 @@ const RevealSpeechText = {
         overlay.appendChild(content);
         document.body.appendChild(overlay);
 
-        // --- 3. WhisperLive Logic ---
+        // --- 3a. Browser Speech Recognition (Web Speech API) ---
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        let recognition = null;
+
+        const initBrowserSpeech = () => {
+            if (!SpeechRecognition) {
+                statusText.innerText = "Browser speech recognition not supported.";
+                statusText.style.color = '#f88';
+                statusText.style.display = 'block';
+                return;
+            }
+
+            recognition = new SpeechRecognition();
+            recognition.continuous = true;
+            recognition.interimResults = true;
+            recognition.lang = options.language;
+
+            let finalTranscript = "";
+
+            recognition.onstart = () => {
+                statusText.innerText = "Listening (Browser)...";
+                statusText.style.color = '#fff';
+                statusText.style.display = 'block';
+                isListening = true;
+            };
+
+            recognition.onresult = (event) => {
+                let interim = "";
+                for (let i = event.resultIndex; i < event.results.length; i++) {
+                    const transcript = event.results[i][0].transcript;
+                    if (event.results[i].isFinal) {
+                        finalTranscript += transcript + " ";
+                    } else {
+                        interim += transcript;
+                    }
+                }
+                finalSpan.innerText = finalTranscript;
+                interimSpan.innerText = interim;
+                overlay.scrollTop = overlay.scrollHeight;
+            };
+
+            recognition.onerror = (event) => {
+                if (event.error === 'no-speech') return;
+                if (event.error === 'aborted') return;
+                console.warn("Browser Speech Error:", event.error);
+                statusText.innerText = "Speech error: " + event.error;
+                statusText.style.color = '#f88';
+            };
+
+            recognition.onend = () => {
+                isListening = false;
+                // Auto-restart if we should still be listening
+                // (browser speech recognition stops after silence or errors)
+                if (recognition && shouldBeListening && options.model === 'browser') {
+                    try {
+                        recognition.start();
+                    } catch (e) { /* already started */ }
+                }
+            };
+
+            statusText.innerText = "Starting...";
+            statusText.style.display = 'block';
+            statusText.style.color = '#fff';
+            recognition.start();
+        };
+
+        const stopBrowserSpeech = () => {
+            if (recognition) {
+                try { recognition.stop(); } catch (e) { /* ignore */ }
+                recognition = null;
+            }
+            isListening = false;
+        };
+
+        // --- 3b. WhisperLive Logic ---
         
         let connectSocket = () => {};
 
@@ -537,7 +633,11 @@ const RevealSpeechText = {
             shouldBeListening = true;
             finalSpan.innerText = "";
             interimSpan.innerText = "";
-            initWhisperLive();
+            if (options.model === 'browser') {
+                initBrowserSpeech();
+            } else {
+                initWhisperLive();
+            }
         };
 
         const stopListening = () => {
@@ -545,6 +645,7 @@ const RevealSpeechText = {
             controlBtn.innerHTML = iconMic;
             
             shouldBeListening = false;
+            stopBrowserSpeech();
             stopLocal();
             statusText.innerText = "Paused.";
             statusText.style.color = '#aaa';
