@@ -15,6 +15,7 @@
         devShells.default = pkgs.mkShell {
           buildInputs = with pkgs; [
             nodejs_20
+            python312
           ];
 
           shellHook = ''
