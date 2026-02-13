@@ -19,8 +19,7 @@ const RevealSpeechText = {
             language: config.language || 'en',
             model: config.model || 'small.en',
             port: config.port || 9090,
-            debug: config.debug || false,
-            repoUrl: config.repoUrl || "https://github.com/oliverk/speech-to-text" // Default to a likely repo or placeholder
+            debug: config.debug || false
         };
 
         // State
@@ -385,7 +384,7 @@ const RevealSpeechText = {
                             const linkStyle = 'color:#6cf;text-decoration:underline;cursor:pointer';
                             statusText.innerHTML =
                                 `Backend not reachable on port ${options.port}.<br>` +
-                                `<a href="${options.repoUrl}" target="_blank" style="${linkStyle}">See README for setup instructions</a>`;
+                                `<a href="https://github.com/OleMussmann/RevealSubtitles" target="_blank" style="${linkStyle}">See README for setup instructions</a>`;
                             statusText.style.color = '#f88';
                         } else {
                             statusText.innerText = "Reconnecting...";
