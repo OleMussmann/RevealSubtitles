@@ -1,5 +1,5 @@
 {
-  "name": "speech-to-text",
+  "name": "RevealSubtitles",
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
