@@ -1,4 +1,3 @@
-
 /**
  * Speech-to-Text Plugin for Reveal.js
  * Real-time transcription via WhisperLive (Docker)
@@ -15,12 +14,13 @@ const RevealSpeechText = {
         // --- 1. Configuration ---
         const config = deck.getConfig().speechText || {};
         const options = {
-            enabled: config.enabled || false, 
             language: config.language || 'en',
             model: config.model || 'small.en',
-            port: config.port || 9090,
-            debug: config.debug || false
+            port: config.port || 9090
         };
+
+        // Shared encoder for sending END_OF_AUDIO signals
+        const textEncoder = new TextEncoder();
 
         // State
         // 0 = Hidden
@@ -30,10 +30,10 @@ const RevealSpeechText = {
         
         let isListening = false;
         let shouldBeListening = false;
-        let localWorker = null; // WebSocket
+        let ws = null; // WebSocket connection
         
         let audioContext = null;
-        let processor = null;
+        let workletNode = null;
         let source = null;
         let globalStream = null;
 
@@ -73,20 +73,12 @@ const RevealSpeechText = {
             #speech-text-overlay::-webkit-scrollbar-track { background: rgba(255, 255, 255, 0.1); border-radius: 4px; }
             #speech-text-overlay::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.3); border-radius: 4px; }
             #speech-text-overlay::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.5); }
-            .speech-progress-bar { width: 100%; height: 4px; background: #444; margin-bottom: 10px; display: none; }
-            .speech-progress-bar-fill { height: 100%; background: #007bff; width: 0%; transition: width 0.1s; }
             .speech-input-group { margin-bottom: 8px; }
             .speech-input-group label { display: block; font-size: 0.8em; color: #aaa; margin-bottom: 2px; }
             .speech-input-field { background: rgba(255,255,255,0.1); border: 1px solid #555; color: white; padding: 5px; border-radius: 4px; width: 100%; box-sizing: border-box; }
             .speech-input-field:focus { outline: none; border-color: #007bff; }
         `;
         document.head.appendChild(styleSheet);
-
-        const progressBar = document.createElement('div');
-        progressBar.className = 'speech-progress-bar';
-        const progressFill = document.createElement('div');
-        progressFill.className = 'speech-progress-bar-fill';
-        progressBar.appendChild(progressFill);
 
         const statusText = document.createElement('div');
         statusText.style.fontSize = '0.5em';
@@ -101,7 +93,7 @@ const RevealSpeechText = {
             position: fixed;
             bottom: 20px;
             left: 20px;
-            display: flex;
+            display: none;
             align-items: center;
             gap: 10px;
             z-index: 99999;
@@ -156,12 +148,11 @@ const RevealSpeechText = {
         };
 
         const restartConnection = () => {
-            if (shouldBeListening && localWorker && localWorker.readyState === WebSocket.OPEN) {
+            if (shouldBeListening && ws && ws.readyState === WebSocket.OPEN) {
                  try {
-                     const encoder = new TextEncoder();
-                     localWorker.send(encoder.encode("END_OF_AUDIO"));
+                     ws.send(textEncoder.encode("END_OF_AUDIO"));
                  } catch (err) { /* ignore */ }
-                 localWorker.close(1000, "config change");
+                 ws.close(1000, "config change");
             }
         };
 
@@ -219,7 +210,6 @@ const RevealSpeechText = {
         controlBtn.innerHTML = iconMic;
         
         controlBtn.addEventListener('click', () => {
-            // Manual click toggles Listening state
             if (viewState === 2) {
                 // Listening -> Shown (Ready)
                 viewState = 1;
@@ -262,7 +252,6 @@ const RevealSpeechText = {
 
         controlContainer.appendChild(controlBtn);
         controlContainer.appendChild(settingsBtn);
-        controlContainer.style.display = 'none'; // Hidden by default until T is pressed
         document.body.appendChild(controlContainer);
 
         const content = document.createElement('div');
@@ -277,7 +266,6 @@ const RevealSpeechText = {
         interimSpan.style.fontStyle = 'italic';
 
         overlay.appendChild(statusText);
-        overlay.appendChild(progressBar);
         content.appendChild(finalSpan);
         content.appendChild(interimSpan);
         overlay.appendChild(content);
@@ -287,6 +275,9 @@ const RevealSpeechText = {
         
         let connectSocket = () => {};
 
+        // --- Helper: Anti-aliased Downsampler (44/48kHz -> 16kHz) ---
+        // Uses a windowed-sinc low-pass FIR filter before decimation
+        // to prevent aliasing artifacts that corrupt speech features.
         let _aaFilterCache = null;
 
         const buildLowPassFilter = (sampleRate, cutoff, numTaps) => {
@@ -345,16 +336,14 @@ const RevealSpeechText = {
         const initWhisperLive = () => {
             const wsUrl = `ws://localhost:${options.port}`; 
             let socket = null;
-            let whisperReady = false;
             let connectFailures = 0;
             let hasConnectedOnce = false;
             
             connectSocket = () => {
                 if (socket && (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING)) return;
 
-                whisperReady = false;
                 socket = new WebSocket(wsUrl);
-                localWorker = socket;
+                ws = socket;
                 
                 socket.onopen = () => {
                     connectFailures = 0;
@@ -374,8 +363,7 @@ const RevealSpeechText = {
                 };
 
                 socket.onclose = () => {
-                    localWorker = null;
-                    whisperReady = false;
+                    ws = null;
                     if (shouldBeListening) {
                         connectFailures++;
                         const delay = Math.min(2000 * Math.pow(2, connectFailures - 1), 10000);
@@ -407,10 +395,8 @@ const RevealSpeechText = {
                         const data = JSON.parse(event.data);
                         
                         if (data.message === "SERVER_READY") {
-                            whisperReady = true;
                             statusText.innerText = "Connected (" + options.model + ")";
                             statusText.style.color = '#fff';
-                            progressBar.style.display = 'none';
                             return;
                         }
                         if (data.message === "DISCONNECT") {
@@ -451,8 +437,6 @@ const RevealSpeechText = {
             
             statusText.innerText = "Connecting...";
             statusText.style.display = 'block';
-            progressBar.style.display = 'block';
-            progressFill.style.width = '0%'; 
             
             connectSocket();
             
@@ -462,44 +446,60 @@ const RevealSpeechText = {
         };
 
         // --- 4. Audio Capture ---
+        // AudioWorklet processor code as a Blob URL (avoids a separate file)
+        const workletCode = `
+            class DownsampleProcessor extends AudioWorkletProcessor {
+                process(inputs) {
+                    const input = inputs[0];
+                    if (input.length > 0 && input[0].length > 0) {
+                        this.port.postMessage(input[0]);
+                    }
+                    return true;
+                }
+            }
+            registerProcessor('downsample-processor', DownsampleProcessor);
+        `;
+        const workletBlob = new Blob([workletCode], { type: 'application/javascript' });
+        const workletUrl = URL.createObjectURL(workletBlob);
+
         const startAudioCapture = async () => {
              try {
-                if (audioContext && audioContext.state === 'closed') {
-                    audioContext = new (window.AudioContext || window.webkitAudioContext)();
-                } else if (!audioContext) {
+                if (!audioContext || audioContext.state === 'closed') {
                     audioContext = new (window.AudioContext || window.webkitAudioContext)();
                 }
+
+                await audioContext.audioWorklet.addModule(workletUrl);
 
                 globalStream = await navigator.mediaDevices.getUserMedia({ audio: true });
                 const sampleRate = audioContext.sampleRate;
                 
                 source = audioContext.createMediaStreamSource(globalStream);
-                const bufferSize = 4096; 
-                processor = audioContext.createScriptProcessor(bufferSize, 1, 1);
+                workletNode = new AudioWorkletNode(audioContext, 'downsample-processor');
 
-                processor.onaudioprocess = (e) => {
+                workletNode.port.onmessage = (e) => {
                     if (!isListening) return;
                     
-                    const inputData = e.inputBuffer.getChannelData(0);
+                    const inputData = e.data;
                     
+                    // VAD (RMS) - reconnect if socket dropped
                     let sum = 0;
                     for (let i = 0; i < inputData.length; i++) sum += inputData[i] * inputData[i];
                     const rms = Math.sqrt(sum / inputData.length);
                     
                     if (rms > 0.02) { 
-                        if (!localWorker || localWorker.readyState !== WebSocket.OPEN) {
+                        if (!ws || ws.readyState !== WebSocket.OPEN) {
                              if (shouldBeListening) connectSocket();
                         }
                     }
 
                     const downsampled = downsampleBuffer(inputData, sampleRate, 16000);
-                    if (localWorker && localWorker.readyState === WebSocket.OPEN) {
-                         localWorker.send(downsampled.buffer);
+                    if (ws && ws.readyState === WebSocket.OPEN) {
+                         ws.send(downsampled.buffer);
                     }
                 };
 
-                source.connect(processor);
-                processor.connect(audioContext.destination);
+                source.connect(workletNode);
+                workletNode.connect(audioContext.destination);
                 isListening = true;
 
             } catch (err) {
@@ -511,17 +511,16 @@ const RevealSpeechText = {
         const stopLocal = () => {
             if (globalStream) globalStream.getTracks().forEach(t => t.stop());
             if (audioContext && audioContext.state !== 'closed') audioContext.close();
-            if (processor) processor.disconnect();
+            if (workletNode) workletNode.disconnect();
             if (source) source.disconnect();
-            if (localWorker) {
-                 if (localWorker.readyState === WebSocket.OPEN) {
+            if (ws) {
+                 if (ws.readyState === WebSocket.OPEN) {
                      try {
-                         const encoder = new TextEncoder();
-                         localWorker.send(encoder.encode("END_OF_AUDIO"));
+                         ws.send(textEncoder.encode("END_OF_AUDIO"));
                      } catch (e) { }
                  }
-                 localWorker.close();
-                 localWorker = null;
+                 ws.close();
+                 ws = null;
             }
             isListening = false;
         };
@@ -532,7 +531,6 @@ const RevealSpeechText = {
             controlBtn.style.background = 'rgba(0, 0, 0, 0.6)';
             controlBtn.innerHTML = iconPause;
             
-            // Ensure visual state is correct
             overlay.style.display = 'flex';
             setTimeout(() => overlay.style.opacity = '1', 10);
             
@@ -548,7 +546,6 @@ const RevealSpeechText = {
             
             shouldBeListening = false;
             stopLocal();
-            // Note: We do NOT hide overlay here unless we transition to Hidden state
             statusText.innerText = "Paused.";
             statusText.style.color = '#aaa';
         };
