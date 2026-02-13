@@ -14,10 +14,17 @@ const RevealSpeechText = {
             enabled: config.enabled || false, 
             language: config.language || 'en',
             model: config.model || 'small.en',
-            debug: config.debug || false
+            port: config.port || 9090,
+            debug: config.debug || false,
+            repoUrl: config.repoUrl || "https://github.com/oliverk/speech-to-text" // Default to a likely repo or placeholder
         };
 
         // State
+        // 0 = Hidden
+        // 1 = Shown (Ready)
+        // 2 = Listening
+        let viewState = 0; 
+        
         let isListening = false;
         let shouldBeListening = false;
         let localWorker = null; // WebSocket
@@ -65,6 +72,10 @@ const RevealSpeechText = {
             #speech-text-overlay::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.5); }
             .speech-progress-bar { width: 100%; height: 4px; background: #444; margin-bottom: 10px; display: none; }
             .speech-progress-bar-fill { height: 100%; background: #007bff; width: 0%; transition: width 0.1s; }
+            .speech-input-group { margin-bottom: 8px; }
+            .speech-input-group label { display: block; font-size: 0.8em; color: #aaa; margin-bottom: 2px; }
+            .speech-input-field { background: rgba(255,255,255,0.1); border: 1px solid #555; color: white; padding: 5px; border-radius: 4px; width: 100%; box-sizing: border-box; }
+            .speech-input-field:focus { outline: none; border-color: #007bff; }
         `;
         document.head.appendChild(styleSheet);
 
@@ -80,7 +91,7 @@ const RevealSpeechText = {
         statusText.style.marginBottom = '5px';
         statusText.style.display = 'none';
 
-        // --- Create Control Button ---
+        // --- Create Control Container ---
         const controlContainer = document.createElement('div');
         controlContainer.id = 'speech-control-container';
         controlContainer.style.cssText = `
@@ -89,12 +100,99 @@ const RevealSpeechText = {
             left: 20px;
             display: flex;
             align-items: center;
+            gap: 10px;
             z-index: 99999;
             font-family: sans-serif;
         `;
 
+        // --- Settings Panel ---
+        const settingsPanel = document.createElement('div');
+        settingsPanel.id = 'speech-settings-panel';
+        settingsPanel.style.cssText = `
+            position: absolute;
+            bottom: 60px;
+            left: 0;
+            background: rgba(0, 0, 0, 0.9);
+            backdrop-filter: blur(5px);
+            padding: 15px;
+            border-radius: 8px;
+            display: none;
+            flex-direction: column;
+            width: 200px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+        `;
+        settingsPanel.addEventListener('keydown', (e) => e.stopPropagation());
+
+        const createInput = (label, type, value, onChange) => {
+            const group = document.createElement('div');
+            group.className = 'speech-input-group';
+            
+            const lbl = document.createElement('label');
+            lbl.innerText = label;
+            
+            let input;
+            if (type === 'select') {
+                input = document.createElement('select');
+                value.forEach(opt => {
+                    const o = document.createElement('option');
+                    o.value = opt.value;
+                    o.innerText = opt.label;
+                    input.appendChild(o);
+                });
+            } else {
+                input = document.createElement('input');
+                input.type = 'text';
+                input.value = value;
+            }
+            input.className = 'speech-input-field';
+            input.addEventListener('change', onChange);
+            
+            group.appendChild(lbl);
+            group.appendChild(input);
+            return { group, input };
+        };
+
+        const restartConnection = () => {
+            if (shouldBeListening && localWorker && localWorker.readyState === WebSocket.OPEN) {
+                 try {
+                     const encoder = new TextEncoder();
+                     localWorker.send(encoder.encode("END_OF_AUDIO"));
+                 } catch (err) { /* ignore */ }
+                 localWorker.close(1000, "config change");
+            }
+        };
+
+        const models = [
+            { value: 'tiny.en', label: 'tiny.en (500Mb)' },
+            { value: 'small.en', label: 'small.en (800Mb)' },
+            { value: 'medium.en', label: 'medium.en (2.3Gb)' },
+            { value: 'large-v3', label: 'large-v3 (4.2Gb)' }
+        ];
+        const modelControl = createInput('Model', 'select', models, (e) => {
+            options.model = e.target.value;
+            restartConnection();
+        });
+        modelControl.input.value = options.model;
+        settingsPanel.appendChild(modelControl.group);
+
+        const langControl = createInput('Language (e.g. en, de)', 'text', options.language, (e) => {
+            options.language = e.target.value;
+            restartConnection();
+        });
+        settingsPanel.appendChild(langControl.group);
+
+        const portControl = createInput('Port', 'text', options.port, (e) => {
+            options.port = parseInt(e.target.value) || 9090;
+            restartConnection();
+        });
+        settingsPanel.appendChild(portControl.group);
+
+        controlContainer.appendChild(settingsPanel);
+
+        // --- Toggle Button (Mic) ---
         const controlBtn = document.createElement('div');
         controlBtn.id = 'speech-text-control';
+        controlBtn.title = 'Toggle Speech Recognition';
         controlBtn.style.cssText = `
             width: 50px;
             height: 50px;
@@ -110,67 +208,58 @@ const RevealSpeechText = {
             transition: all 0.2s ease;
             box-shadow: 0 4px 6px rgba(0,0,0,0.3);
         `;
-        controlBtn.innerHTML = `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>`;
+        
+        // Default Icon (Mic Off / Idle)
+        const iconMic = `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>`;
+        const iconStop = `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>`;
+        
+        controlBtn.innerHTML = iconMic;
         
         controlBtn.addEventListener('click', () => {
-            toggle();
+            // Manual click toggles Listening state
+            if (viewState === 2) {
+                // Listening -> Shown (Ready)
+                viewState = 1;
+                stopListening();
+            } else {
+                // Hidden/Shown -> Listening
+                viewState = 2;
+                startListening();
+            }
         });
-
         controlBtn.onmouseover = () => controlBtn.style.transform = 'scale(1.1)';
         controlBtn.onmouseout = () => controlBtn.style.transform = 'scale(1.0)';
         
-        // --- Model Selector (Dropdown) ---
-        const modelSelect = document.createElement('select');
-        modelSelect.id = 'speech-text-model-select';
-        
-        // Prevent key events from bubbling up to Reveal.js
-        modelSelect.addEventListener('keydown', (e) => e.stopPropagation());
-        
-        modelSelect.style.cssText = `
-            margin-left: 10px;
-            padding: 5px;
-            border-radius: 5px;
+        // --- Settings Toggle Button (Gear) ---
+        const settingsBtn = document.createElement('div');
+        settingsBtn.title = 'Settings';
+        settingsBtn.style.cssText = `
+            width: 40px;
+            height: 40px;
             background: rgba(0, 0, 0, 0.6);
-            color: white;
-            border: 1px solid #444;
-            font-size: 14px;
+            backdrop-filter: blur(5px);
+            border-radius: 50%;
             cursor: pointer;
-            outline: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 18px;
+            transition: all 0.2s ease;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
         `;
+        settingsBtn.innerHTML = `<svg width="20" height="20" viewBox="0 0 123 124.4" fill="white"><defs><clipPath id="gear-clip"><path d="M0 0h123v124.4H0z m86.5 62.2a25.9 25.9 0 0 0-25.9-25.9 25.9 25.9 0 0 0-25.9 25.9 25.9 25.9 0 0 0 25.9 25.9 25.9 25.9 0 0 0 25.9-25.9z"/></clipPath></defs><path clip-path="url(#gear-clip)" d="M61.5 0a65.5 62.2 0 0 0-11.4 1l-4.1 19.1a46.9 44.6 0 0 0-15.2 8.3L11.3 22.2A65.5 62.2 0 0 0 0 40.9l15.4 12.9a46.9 44.6 0 0 0-.9 8.3 46.9 44.6 0 0 0 .9 8.3L0 83.4a65.5 62.2 0 0 0 11.4 18.7l19.5-6.2a46.9 44.6 0 0 0 15.2 8.3l4.1 19.1a65.5 62.2 0 0 0 11.4 1 65.5 62.2 0 0 0 11.4-1l4.1-19.1a46.9 44.6 0 0 0 15.2-8.3l19.5 6.2a65.5 62.2 0 0 0 11.4-18.7L107.7 70.5a46.9 44.6 0 0 0 .9-8.3 46.9 44.6 0 0 0-.8-8.4l15.4-12.9a65.5 62.2 0 0 0-11.3-18.7l-19.5 6.2a46.9 44.6 0 0 0-15.2-8.4L73 1a65.5 62.2 0 0 0-11.4-.9z"/></svg>`;
         
-        const models = [
-            { value: 'tiny.en', label: 'tiny.en (ok quality, 500Mb RAM)' },
-            { value: 'small.en', label: 'small.en (better quality, 800Mb RAM)' },
-            { value: 'medium.en', label: 'medium.en (great quality, 2.3Gb RAM)' },
-            { value: 'large-v3', label: 'large-v3 (best quality, 4.2Gb RAM)' }
-        ];
-
-        models.forEach(m => {
-            const opt = document.createElement('option');
-            opt.value = m.value;
-            opt.innerText = m.label;
-            modelSelect.appendChild(opt);
+        settingsBtn.addEventListener('click', () => {
+             const isHidden = settingsPanel.style.display === 'none';
+             settingsPanel.style.display = isHidden ? 'flex' : 'none';
         });
-
-        modelSelect.value = options.model;
-
-        // Changing model requires reconnection
-        modelSelect.addEventListener('change', (e) => {
-            options.model = e.target.value;
-            if (shouldBeListening) {
-                // Gracefully close, then onclose handler will auto-reconnect with new model
-                if (localWorker && localWorker.readyState === WebSocket.OPEN) {
-                    try {
-                        const encoder = new TextEncoder();
-                        localWorker.send(encoder.encode("END_OF_AUDIO"));
-                    } catch (err) { /* ignore */ }
-                    localWorker.close(1000, "model change");
-                }
-            }
-        });
+        settingsBtn.onmouseover = () => settingsBtn.style.transform = 'scale(1.1)';
+        settingsBtn.onmouseout = () => settingsBtn.style.transform = 'scale(1.0)';
 
         controlContainer.appendChild(controlBtn);
-        controlContainer.appendChild(modelSelect);
+        controlContainer.appendChild(settingsBtn);
+        controlContainer.style.display = 'none'; // Hidden by default until T is pressed
         document.body.appendChild(controlContainer);
 
         const content = document.createElement('div');
@@ -195,9 +284,6 @@ const RevealSpeechText = {
         
         let connectSocket = () => {};
 
-        // --- Helper: Anti-aliased Downsampler (44/48kHz -> 16kHz) ---
-        // Uses a windowed-sinc low-pass FIR filter before decimation
-        // to prevent aliasing artifacts that corrupt speech features.
         let _aaFilterCache = null;
 
         const buildLowPassFilter = (sampleRate, cutoff, numTaps) => {
@@ -254,7 +340,7 @@ const RevealSpeechText = {
         };
 
         const initWhisperLive = () => {
-            const wsUrl = 'ws://localhost:9090'; 
+            const wsUrl = `ws://localhost:${options.port}`; 
             let socket = null;
             let whisperReady = false;
             let connectFailures = 0;
@@ -289,21 +375,13 @@ const RevealSpeechText = {
                     whisperReady = false;
                     if (shouldBeListening) {
                         connectFailures++;
-                        // Exponential backoff: 2s, 4s, 8s, max 10s
                         const delay = Math.min(2000 * Math.pow(2, connectFailures - 1), 10000);
 
                         if (!hasConnectedOnce && connectFailures >= 2) {
-                            // Backend has never been reachable -- show setup instructions
                             const linkStyle = 'color:#6cf;text-decoration:underline;cursor:pointer';
-                            const codeStyle = 'background:#333;padding:2px 6px;border-radius:3px;font-size:0.9em';
                             statusText.innerHTML =
-                                'WhisperLive backend not reachable.<br>' +
-                                'Download: ' +
-                                '<a href="DUMMY_URL/docker-compose.yml" download style="' + linkStyle + '">CPU</a>' +
-                                ' · ' +
-                                '<a href="DUMMY_URL/docker-compose-gpu.yml" download style="' + linkStyle + '">GPU (NVIDIA)</a>' +
-                                '<br>Then run: ' +
-                                '<code style="' + codeStyle + '">docker compose up -d</code>';
+                                `Backend not reachable on port ${options.port}.<br>` +
+                                `<a href="${options.repoUrl}" target="_blank" style="${linkStyle}">See README for setup instructions</a>`;
                             statusText.style.color = '#f88';
                         } else {
                             statusText.innerText = "Reconnecting...";
@@ -333,7 +411,6 @@ const RevealSpeechText = {
                             return;
                         }
                         if (data.message === "DISCONNECT") {
-                            console.warn("WhisperLive: server session expired, will auto-reconnect");
                             statusText.innerText = "Session expired. Reconnecting...";
                             statusText.style.color = '#ff8';
                             return;
@@ -344,7 +421,6 @@ const RevealSpeechText = {
                             return;
                         }
                         if (data.status === "ERROR" || data.status === "WARNING") {
-                            console.warn("WhisperLive server:", data.status, data.message);
                             statusText.innerText = data.status + ": " + (data.message || "unknown");
                             statusText.style.color = data.status === "ERROR" ? '#f88' : '#ff8';
                             return;
@@ -353,7 +429,6 @@ const RevealSpeechText = {
                         if (data.segments) {
                             let completedText = "";
                             let pendingText = "";
-                            
                             for (const segment of data.segments) {
                                 if (segment.completed === false) {
                                     pendingText += segment.text + " ";
@@ -361,13 +436,10 @@ const RevealSpeechText = {
                                     completedText += segment.text + " ";
                                 }
                             }
-                            
                             finalSpan.innerText = completedText;
                             interimSpan.innerText = pendingText;
-                            
                             overlay.scrollTop = overlay.scrollHeight;
                         }
-                        
                     } catch (e) {
                         console.error("Invalid JSON:", event.data);
                     }
@@ -378,10 +450,7 @@ const RevealSpeechText = {
             statusText.style.display = 'block';
             progressBar.style.display = 'block';
             progressFill.style.width = '0%'; 
-            overlay.style.display = 'flex';
-            overlay.style.opacity = '1';
             
-            // Connect eagerly to avoid losing first words
             connectSocket();
             
             if (!audioContext || audioContext.state === 'closed') {
@@ -399,11 +468,9 @@ const RevealSpeechText = {
                 }
 
                 globalStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                
                 const sampleRate = audioContext.sampleRate;
                 
                 source = audioContext.createMediaStreamSource(globalStream);
-                
                 const bufferSize = 4096; 
                 processor = audioContext.createScriptProcessor(bufferSize, 1, 1);
 
@@ -412,7 +479,6 @@ const RevealSpeechText = {
                     
                     const inputData = e.inputBuffer.getChannelData(0);
                     
-                    // VAD (RMS) - reconnect if socket dropped
                     let sum = 0;
                     for (let i = 0; i < inputData.length; i++) sum += inputData[i] * inputData[i];
                     const rms = Math.sqrt(sum / inputData.length);
@@ -423,9 +489,7 @@ const RevealSpeechText = {
                         }
                     }
 
-                    // Downsample and send
                     const downsampled = downsampleBuffer(inputData, sampleRate, 16000);
-                    
                     if (localWorker && localWorker.readyState === WebSocket.OPEN) {
                          localWorker.send(downsampled.buffer);
                     }
@@ -447,12 +511,11 @@ const RevealSpeechText = {
             if (processor) processor.disconnect();
             if (source) source.disconnect();
             if (localWorker) {
-                 // Signal WhisperLive to finalize any buffered audio
                  if (localWorker.readyState === WebSocket.OPEN) {
                      try {
                          const encoder = new TextEncoder();
                          localWorker.send(encoder.encode("END_OF_AUDIO"));
-                     } catch (e) { /* ignore send errors during teardown */ }
+                     } catch (e) { }
                  }
                  localWorker.close();
                  localWorker = null;
@@ -460,11 +523,15 @@ const RevealSpeechText = {
             isListening = false;
         };
 
-        // --- 5. Start / Stop / Toggle ---
-        const start = () => {
-            controlBtn.style.background = '#dc3545';
-            controlBtn.innerHTML = `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>`;
-            modelSelect.style.display = 'none';
+        // --- 5. Logic Control ---
+        
+        const startListening = () => {
+            controlBtn.style.background = '#dc3545'; // Red
+            controlBtn.innerHTML = iconStop;
+            
+            // Ensure visual state is correct
+            overlay.style.display = 'flex';
+            setTimeout(() => overlay.style.opacity = '1', 10);
             
             shouldBeListening = true;
             finalSpan.innerText = "";
@@ -472,28 +539,56 @@ const RevealSpeechText = {
             initWhisperLive();
         };
 
-        const stop = () => {
-            controlBtn.style.background = 'rgba(0, 0, 0, 0.6)';
-            controlBtn.innerHTML = `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>`;
-            modelSelect.style.display = '';
+        const stopListening = () => {
+            controlBtn.style.background = 'rgba(0, 0, 0, 0.6)'; // Normal
+            controlBtn.innerHTML = iconMic;
             
             shouldBeListening = false;
             stopLocal();
-            overlay.style.opacity = '0';
-            setTimeout(() => { overlay.style.display = 'none'; }, 300);
+            // Note: We do NOT hide overlay here unless we transition to Hidden state
+            statusText.innerText = "Paused.";
+            statusText.style.color = '#aaa';
         };
 
-        const toggle = () => {
-            if (shouldBeListening) stop();
-            else start();
+        // Main Toggle Logic (T Key)
+        // Cycle: Hidden -> Shown -> Listening -> Hidden
+        const toggleCycle = () => {
+            if (viewState === 0) {
+                // Hidden -> Shown
+                viewState = 1;
+                controlContainer.style.display = 'flex';
+                overlay.style.display = 'flex';
+                setTimeout(() => overlay.style.opacity = '1', 10);
+                statusText.innerText = "Ready. Press 'T' to start.";
+                statusText.style.display = 'block';
+                statusText.style.color = '#aaa';
+            } else if (viewState === 1) {
+                // Shown -> Listening
+                viewState = 2;
+                startListening();
+            } else {
+                // Listening -> Hidden
+                viewState = 0;
+                stopListening();
+                settingsPanel.style.display = 'none';
+                controlContainer.style.display = 'none';
+                overlay.style.opacity = '0';
+                setTimeout(() => overlay.style.display = 'none', 300);
+            }
         };
 
         // 6. Register Keyboard Shortcut
         deck.addKeyBinding({ keyCode: 84, key: 'T', description: 'Toggle Speech-to-Text' }, () => {
-            toggle();
+            toggleCycle();
         });
 
-        return { start, stop, toggle, isListening: () => isListening };
+        // Expose API
+        return { 
+            start: startListening, 
+            stop: stopListening, 
+            toggle: toggleCycle, 
+            isListening: () => isListening 
+        };
     }
 };
 
