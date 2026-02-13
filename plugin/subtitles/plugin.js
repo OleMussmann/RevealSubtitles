@@ -8,7 +8,7 @@
  */
 
 const RevealSubtitles = {
-    id: 'speech-text',
+    id: 'subtitles',
     init: (deck) => {
         
         // --- 1. Configuration ---
@@ -39,7 +39,7 @@ const RevealSubtitles = {
 
         // --- 2. Create UI Overlay ---
         const overlay = document.createElement('div');
-        overlay.id = 'speech-text-overlay';
+        overlay.id = 'subtitles-overlay';
         overlay.style.cssText = `
             position: fixed;
             bottom: 20px;
@@ -69,10 +69,10 @@ const RevealSubtitles = {
         
         const styleSheet = document.createElement("style");
         styleSheet.innerText = `
-            #speech-text-overlay::-webkit-scrollbar { width: 8px; }
-            #speech-text-overlay::-webkit-scrollbar-track { background: rgba(255, 255, 255, 0.1); border-radius: 4px; }
-            #speech-text-overlay::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.3); border-radius: 4px; }
-            #speech-text-overlay::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.5); }
+            #subtitles-overlay::-webkit-scrollbar { width: 8px; }
+            #subtitles-overlay::-webkit-scrollbar-track { background: rgba(255, 255, 255, 0.1); border-radius: 4px; }
+            #subtitles-overlay::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.3); border-radius: 4px; }
+            #subtitles-overlay::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.5); }
             .speech-input-group { margin-bottom: 8px; }
             .speech-input-group label { display: block; font-size: 0.8em; color: #aaa; margin-bottom: 2px; }
             .speech-input-field { background: rgba(255,255,255,0.1); border: 1px solid #555; color: white; padding: 5px; border-radius: 4px; width: 100%; box-sizing: border-box; }
@@ -207,7 +207,7 @@ const RevealSubtitles = {
 
         // --- Toggle Button (Mic) ---
         const controlBtn = document.createElement('div');
-        controlBtn.id = 'speech-text-control';
+        controlBtn.id = 'subtitles-control';
         controlBtn.title = 'Toggle Speech Recognition';
         controlBtn.style.cssText = `
             width: 50px;
@@ -277,7 +277,7 @@ const RevealSubtitles = {
         document.body.appendChild(controlContainer);
 
         const content = document.createElement('div');
-        content.id = 'speech-text-content';
+        content.id = 'subtitles-content';
         content.style.textShadow = '2px 2px 4px rgba(0,0,0,0.8)';
         
         const finalSpan = document.createElement('span');
