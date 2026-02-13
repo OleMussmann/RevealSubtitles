@@ -2,6 +2,10 @@
 /**
  * Speech-to-Text Plugin for Reveal.js
  * Real-time transcription via WhisperLive (Docker)
+ *
+ * Icons: Font Awesome Free 7.2.0 by @fontawesome
+ * License: https://fontawesome.com/license/free
+ * Copyright 2026 Fonticons, Inc.
  */
 
 const RevealSpeechText = {
@@ -196,7 +200,7 @@ const RevealSpeechText = {
         controlBtn.style.cssText = `
             width: 50px;
             height: 50px;
-            background: rgba(0, 0, 0, 0.6);
+            background: #dc3545;
             backdrop-filter: blur(5px);
             border-radius: 50%;
             cursor: pointer;
@@ -209,9 +213,9 @@ const RevealSpeechText = {
             box-shadow: 0 4px 6px rgba(0,0,0,0.3);
         `;
         
-        // Default Icon (Mic Off / Idle)
-        const iconMic = `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>`;
-        const iconStop = `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>`;
+        // FontAwesome icons (Font Awesome Free 7.2.0, https://fontawesome.com/license/free)
+        const iconMic = `<svg width="20" height="24" viewBox="0 0 384 512" fill="currentColor"><path d="M192 0C139 0 96 43 96 96l0 128c0 53 43 96 96 96s96-43 96-96l0-128c0-53-43-96-96-96zM48 184c0-13.3-10.7-24-24-24S0 170.7 0 184l0 40c0 97.9 73.3 178.7 168 190.5l0 49.5-48 0c-13.3 0-24 10.7-24 24s10.7 24 24 24l144 0c13.3 0 24-10.7 24-24s-10.7-24-24-24l-48 0 0-49.5c94.7-11.8 168-92.6 168-190.5l0-40c0-13.3-10.7-24-24-24s-24 10.7-24 24l0 40c0 79.5-64.5 144-144 144S48 303.5 48 224l0-40z"/></svg>`;
+        const iconPause = `<svg width="24" height="24" viewBox="0 0 512 512" fill="currentColor"><path d="M256 512a256 256 0 1 0 0-512 256 256 0 1 0 0 512zM224 192l0 128c0 17.7-14.3 32-32 32s-32-14.3-32-32l0-128c0-17.7 14.3-32 32-32s32 14.3 32 32zm128 0l0 128c0 17.7-14.3 32-32 32s-32-14.3-32-32l0-128c0-17.7 14.3-32 32-32s32 14.3 32 32z"/></svg>`;
         
         controlBtn.innerHTML = iconMic;
         
@@ -248,7 +252,7 @@ const RevealSpeechText = {
             transition: all 0.2s ease;
             box-shadow: 0 4px 6px rgba(0,0,0,0.3);
         `;
-        settingsBtn.innerHTML = `<svg width="20" height="20" viewBox="0 0 123 124.4" fill="white"><defs><clipPath id="gear-clip"><path d="M0 0h123v124.4H0z m86.5 62.2a25.9 25.9 0 0 0-25.9-25.9 25.9 25.9 0 0 0-25.9 25.9 25.9 25.9 0 0 0 25.9 25.9 25.9 25.9 0 0 0 25.9-25.9z"/></clipPath></defs><path clip-path="url(#gear-clip)" d="M61.5 0a65.5 62.2 0 0 0-11.4 1l-4.1 19.1a46.9 44.6 0 0 0-15.2 8.3L11.3 22.2A65.5 62.2 0 0 0 0 40.9l15.4 12.9a46.9 44.6 0 0 0-.9 8.3 46.9 44.6 0 0 0 .9 8.3L0 83.4a65.5 62.2 0 0 0 11.4 18.7l19.5-6.2a46.9 44.6 0 0 0 15.2 8.3l4.1 19.1a65.5 62.2 0 0 0 11.4 1 65.5 62.2 0 0 0 11.4-1l4.1-19.1a46.9 44.6 0 0 0 15.2-8.3l19.5 6.2a65.5 62.2 0 0 0 11.4-18.7L107.7 70.5a46.9 44.6 0 0 0 .9-8.3 46.9 44.6 0 0 0-.8-8.4l15.4-12.9a65.5 62.2 0 0 0-11.3-18.7l-19.5 6.2a46.9 44.6 0 0 0-15.2-8.4L73 1a65.5 62.2 0 0 0-11.4-.9z"/></svg>`;
+        settingsBtn.innerHTML = `<svg width="20" height="20" viewBox="0 0 640 640" fill="currentColor"><path d="M259.1 73.5C262.1 58.7 275.2 48 290.4 48L350.2 48C365.4 48 378.5 58.7 381.5 73.5L396 143.5C410.1 149.5 423.3 157.2 435.3 166.3L503.1 143.8C517.5 139 533.3 145 540.9 158.2L570.8 210C578.4 223.2 575.7 239.8 564.3 249.9L511 297.3C511.9 304.7 512.3 312.3 512.3 320C512.3 327.7 511.8 335.3 511 342.7L564.4 390.2C575.8 400.3 578.4 417 570.9 430.1L541 481.9C533.4 495 517.6 501.1 503.2 496.3L435.4 473.8C423.3 482.9 410.1 490.5 396.1 496.6L381.7 566.5C378.6 581.4 365.5 592 350.4 592L290.6 592C275.4 592 262.3 581.3 259.3 566.5L244.9 496.6C230.8 490.6 217.7 482.9 205.6 473.8L137.5 496.3C123.1 501.1 107.3 495.1 99.7 481.9L69.8 430.1C62.2 416.9 64.9 400.3 76.3 390.2L129.7 342.7C128.8 335.3 128.4 327.7 128.4 320C128.4 312.3 128.9 304.7 129.7 297.3L76.3 249.8C64.9 239.7 62.3 223 69.8 209.9L99.7 158.1C107.3 144.9 123.1 138.9 137.5 143.7L205.3 166.2C217.4 157.1 230.6 149.5 244.6 143.4L259.1 73.5zM320.3 400C364.5 399.8 400.2 363.9 400 319.7C399.8 275.5 363.9 239.8 319.7 240C275.5 240.2 239.8 276.1 240 320.3C240.2 364.5 276.1 400.2 320.3 400z"/></svg>`;
         
         settingsBtn.addEventListener('click', () => {
              const isHidden = settingsPanel.style.display === 'none';
@@ -526,8 +530,8 @@ const RevealSpeechText = {
         // --- 5. Logic Control ---
         
         const startListening = () => {
-            controlBtn.style.background = '#dc3545'; // Red
-            controlBtn.innerHTML = iconStop;
+            controlBtn.style.background = 'rgba(0, 0, 0, 0.6)';
+            controlBtn.innerHTML = iconPause;
             
             // Ensure visual state is correct
             overlay.style.display = 'flex';
@@ -540,7 +544,7 @@ const RevealSpeechText = {
         };
 
         const stopListening = () => {
-            controlBtn.style.background = 'rgba(0, 0, 0, 0.6)'; // Normal
+            controlBtn.style.background = '#dc3545';
             controlBtn.innerHTML = iconMic;
             
             shouldBeListening = false;
