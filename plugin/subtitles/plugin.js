@@ -7,7 +7,7 @@
  * Copyright 2026 Fonticons, Inc.
  */
 
-const RevealSpeechText = {
+const RevealSubtitles = {
     id: 'speech-text',
     init: (deck) => {
         
@@ -694,4 +694,4 @@ const RevealSpeechText = {
     }
 };
 
-export default RevealSpeechText;
+export default RevealSubtitles;

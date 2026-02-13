@@ -45,14 +45,14 @@
 
     <script type="module">
       import Reveal from './node_modules/reveal.js/dist/reveal.esm.js';
-      import RevealSpeechText from './plugin/speech-text/plugin.js';
+      import RevealSubtitles from './plugin/subtitles/plugin.js';
 
       Reveal.initialize({
         controls: true,
         progress: true,
         center: true,
         hash: true,
-        plugins: [ RevealSpeechText ],
+        plugins: [ RevealSubtitles ],
         speechText: {
             language: 'en',
             model: 'small.en',
