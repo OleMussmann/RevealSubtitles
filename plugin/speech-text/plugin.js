@@ -626,6 +626,7 @@ const RevealSpeechText = {
         const startListening = () => {
             controlBtn.style.background = 'rgba(0, 0, 0, 0.6)';
             controlBtn.innerHTML = iconPause;
+            settingsPanel.style.display = 'none';
             
             overlay.style.display = 'flex';
             setTimeout(() => overlay.style.opacity = '1', 10);
