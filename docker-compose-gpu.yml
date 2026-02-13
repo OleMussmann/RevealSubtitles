@@ -1,0 +1,14 @@
+services:
+  whisperlive:
+    image: ghcr.io/collabora/whisperlive-gpu
+    ports:
+      - "9090:9090"
+    command: python3 run_server.py --max_connection_time 86400
+    restart: unless-stopped
+    volumes:
+      - whisper-models:/root/.cache/huggingface
+    devices:
+      - nvidia.com/gpu=all
+
+volumes:
+  whisper-models:

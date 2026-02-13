@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>Reveal.js Speech-to-Text Demo</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="node_modules/reveal.js/dist/reveal.css">
+    <link rel="stylesheet" href="node_modules/reveal.js/dist/theme/black.css">
+  </head>
+  <body>
+    <div class="reveal">
+      <div class="slides">
+        <section>
+          <h1>Speech to Text</h1>
+          <p>This is a demo of the real-time transcription plugin.</p>
+          <p><small>Press 'T' to toggle subtitles.</small></p>
+        </section>
+        <section>
+          <h2>Slide 2</h2>
+          <p>Speak now and see your words appear below.</p>
+        </section>
+        <section>
+          <h2>Features</h2>
+          <ul>
+            <li>Real-time transcription</li>
+            <li>Auto-scrolling</li>
+            <li>Works stand-alone (in Chrome/Edge)...</li>
+            <ul>
+              <li>words only</li>
+            </ul>
+            <li>... or with a speech-to-text docker companion</li>
+            <ul>
+              <li>better accuracy, punctuation</li>
+            </ul>
+          </ul>
+        </section>
+      </div>
+    </div>
+
+    <script type="module">
+      import Reveal from './node_modules/reveal.js/dist/reveal.esm.js';
+      import RevealSpeechText from './plugin/speech-text/plugin.js';
+
+      Reveal.initialize({
+        controls: true,
+        progress: true,
+        center: true,
+        hash: true,
+        plugins: [ RevealSpeechText ],
+        speechText: {
+            enabled: false, // Default off, press S to toggle
+            debug: true
+        }
+      });
+    </script>
+  </body>
+</html>

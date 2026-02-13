@@ -1,0 +1,12 @@
+services:
+  whisperlive:
+    image: ghcr.io/collabora/whisperlive-cpu
+    ports:
+      - "9090:9090"
+    command: python3 run_server.py --max_connection_time 86400 --omp_num_threads 4
+    restart: unless-stopped
+    volumes:
+      - whisper-models:/root/.cache/huggingface
+
+volumes:
+  whisper-models:
