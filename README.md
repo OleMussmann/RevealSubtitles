@@ -1,15 +1,17 @@
 # RevealSubtitles
 
-A [Reveal.js](https://revealjs.com/) plugin that adds real-time, auto-scrolling subtitles to your presentation. It supports two backends: the browser's built-in [Web Speech API](https://developer.mozilla.org/en-US/docs/Web/API/SpeechRecognition) (Chrome/Edge, no setup required) or OpenAI's Whisper model via [WhisperLive](https://github.com/collabora/WhisperLive) (requires Docker/Podman).
+A [Reveal.js](https://revealjs.com/) plugin that adds real-time, auto-scrolling subtitles to your presentation. It supports two backends: the browser's [Web Speech API](https://developer.mozilla.org/en-US/docs/Web/API/SpeechRecognition) (Chrome/Edge, no setup required) or OpenAI's Whisper model via [WhisperLive](https://github.com/collabora/WhisperLive) (requires Docker/Podman).
 
 ## Features
 
 - **Real-time Transcription**: Low-latency speech-to-text.
-- **Browser Mode**: Works out-of-the-box in Chrome/Edge using the built-in Web Speech API - no backend needed.
+- **Browser Mode**: Works out-of-the-box in Chrome/Edge using the Web Speech API - no own backend needed.
 - **Whisper Mode**: Higher accuracy with punctuation via a local WhisperLive backend (Docker/Podman). Runs entirely on your hardware - no cloud API keys required.
-- **Multiple Models**: Choose from `Browser (built-in)`, or Whisper models from `tiny.en` to `large-v3` depending on your hardware capabilities.
+- **Multiple Models**: Choose from `Browser (via remote servers)`, or Whisper models from `tiny.en` to `large-v3` depending on your hardware capabilities.
 - **Multi-language Support**: Configure the language of your speech.
 - **Zero-click operation**: Toggle with a hotkey.
+
+> N.B.: The Browser Mode transcribes the audio on [Google's servers](https://docs.cloud.google.com/speech-to-text/docs/v1/data-usage-faq?utm_source=chatgpt.com) for Chrome and [Microsoft's servers](https://learn.microsoft.com/uk-ua/deployedge/microsoft-edge-browser-policies/speechrecognitionenabled?utm_source=chatgpt.com) for Edge, respectively. Use the Whisper Mode instead if you are not comfortable with this.
 
 ## Prerequisites
 
@@ -27,7 +29,7 @@ The following are only required for the Whisper backend:
 
 ### Browser Mode (Quick Start)
 
-No backend setup is needed. Just install and run the presentation (see below), select `Browser (built-in)` from the Model dropdown, and start talking. This works in Chrome and Edge.
+No backend setup is needed. Just install and run the presentation (see below), select `Browser (via remote servers)` from the Model dropdown, and start talking. This works in Chrome and Edge.
 
 ### Whisper Mode
 
@@ -72,7 +74,7 @@ Open your browser to `http://localhost:8000`.
   3.  **Listening**: Microphone is active, transcription is running.
 - **Click the Mic Icon**: Toggle listening on/off.
 - **Click the Gear Icon**: Open settings to configure:
-  - **Model**: Select `Browser (built-in)` for zero-setup in-browser recognition, or a Whisper model (`tiny.en` through `large-v3`) for higher accuracy with punctuation. Larger Whisper models are more accurate but require more RAM/VRAM.
+  - **Model**: Select `Browser (via remote servers)` for zero-setup in-browser recognition, or a Whisper model (`tiny.en` through `large-v3`) for higher accuracy with punctuation. Larger Whisper models are more accurate but require more RAM/VRAM.
   - **Language**: Set the spoken language code (e.g., `en`, `de`, `fr`).
   - **Port**: Change the WhisperLive WebSocket port if needed (hidden when using Browser mode).
 

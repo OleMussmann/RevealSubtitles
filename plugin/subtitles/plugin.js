@@ -175,7 +175,7 @@ const RevealSubtitles = {
     );
     const models = [
       ...(hasBrowserSpeech
-        ? [{ value: "browser", label: "Browser (built-in)" }]
+        ? [{ value: "browser", label: "Browser (via remote servers)" }]
         : []),
       { value: "tiny.en", label: "tiny.en (Whisper, 500Mb)" },
       { value: "small.en", label: "small.en (Whisper, 800Mb)" },
