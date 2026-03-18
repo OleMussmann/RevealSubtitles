@@ -705,7 +705,7 @@ const RevealSubtitles = {
         controlContainer.style.display = "flex";
         overlay.style.display = "flex";
         setTimeout(() => (overlay.style.opacity = "1"), 10);
-        statusText.innerText = "Ready. Press 'T' to start.";
+        statusText.innerText = "Ready. Press 't' to start.";
         statusText.style.display = "block";
         statusText.style.color = "#aaa";
       } else if (viewState === 1) {
